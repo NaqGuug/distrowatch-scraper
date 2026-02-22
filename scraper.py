@@ -43,7 +43,10 @@ def extract_distro_data(name: str) -> None:
     info_page: BeautifulSoup = distro_soup.find(attrs={"class": "TablesTitle"})
 
     # Distro full name
-    distro_name: str = info_page.h1.text
+    distro_name: str = info_page.h1.extract().text
+
+    # Last update
+    last_update: str = info_page.h2.extract().text
 
     # Distro logo
     logo_url: str = info_page.find("img", attrs={"class": "logo"}).get("src")
@@ -52,18 +55,25 @@ def extract_distro_data(name: str) -> None:
         headers=REQUEST_HEADERS
     ).content
 
-    # Distro description
-    distro_description: str = ""
-    distro_description_list: str = info_page.find_all(string=True, recursive=False)
-    for s in distro_description_list:
-        striped_string: str = s.strip()
-        if striped_string:
-            distro_description = striped_string
-            break
-    # distro_description: str = info_page.text.strip()
-    # print(distro_description)
+    # Info list (ul)
+    # TODO: Get info
+    distro_info: str = info_page.ul.extract()
 
-    # TODO: Scrape list, popularity (12, 6, 3, 4, 1), reviews
+    # Distro description
+    text_partition: tuple[str, str, str] = info_page.text.strip().partition("\n")
+    distro_description: str = text_partition[0]
+
+    # Rating
+    bold_text = info_page.find_all("b")
+    review_count: int = 0
+    average_rating: float = 0.0
+    try:
+        review_count = int(bold_text[-1].text)
+        average_rating = float(bold_text[-2].text)
+    except ValueError or KeyError:
+        pass
+
+    # TODO: Scrape list
     # Save to json, image as png
 
 
@@ -71,8 +81,9 @@ def extract_distro_data(name: str) -> None:
 def main() -> None:
     # distros = get_distros()
     # print(len(distros))
-    # extract_distro_data("gnuinos")
-    extract_distro_data("0linux")
+    extract_distro_data("gnuinos")
+    # extract_distro_data("eagle")
+    # extract_distro_data("qlustar")
 
 
 if __name__ == "__main__":
