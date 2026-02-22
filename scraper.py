@@ -1,5 +1,6 @@
 from bs4 import BeautifulSoup
 import requests
+import re
 
 # Constants
 DISTOWATCH_URL: str = "https://distrowatch.com/"
@@ -7,6 +8,7 @@ URL_EXTENSION: str = "table.php?distribution="
 REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": "Mozilla Gecko"
 }
+first_number: re.Pattern = re.compile(r"\d+")
 
 
 def get_distros() -> list[str]:
@@ -56,12 +58,32 @@ def extract_distro_data(name: str) -> None:
     ).content
 
     # Info list (ul)
-    # TODO: Get info
-    distro_info: str = info_page.ul.extract()
+    distro_info_soup: BeautifulSoup = info_page.ul.extract()
+    distro_info: dict[str, str | int] = {}
+    for li in distro_info_soup.find_all("li"):
+        # Key
+        key: str = li.b.text.lower().replace(" ", "_")[:-1]
+
+        # Value
+        links = li.find_all(["a", "font"], recursive=False)
+        value: str = ", ".join([link.text for link in links])
+
+        distro_info[key] = value
+
+    # Manual edits to status and popularity
+    distro_info["status"] = distro_info["status"].partition(",")[0]
+    if not distro_info["popularity"]:
+        # Popularity not ranked
+        distro_info["popularity"] = 0
+        distro_info["hits_per_day"] = 0
+    else:
+        # Get popularity and hits per day
+        popularity_partition: tuple[str, str, str] = distro_info["popularity"].partition(" ")
+        distro_info["popularity"] = int(popularity_partition[0])
+        distro_info["hits_per_day"] = int(first_number.search(popularity_partition[2]).group())
 
     # Distro description
-    text_partition: tuple[str, str, str] = info_page.text.strip().partition("\n")
-    distro_description: str = text_partition[0]
+    distro_description: str = info_page.text.strip().partition("\n")[0]
 
     # Rating
     bold_text = info_page.find_all("b")
@@ -73,7 +95,6 @@ def extract_distro_data(name: str) -> None:
     except ValueError or KeyError:
         pass
 
-    # TODO: Scrape list
     # Save to json, image as png
 
 
