@@ -1,6 +1,8 @@
 from bs4 import BeautifulSoup
 import requests
 import re
+from datetime import datetime, timezone
+import json
 
 # Constants
 DISTOWATCH_URL: str = "https://distrowatch.com/"
@@ -44,25 +46,23 @@ def extract_distro_data(name: str) -> None:
     distro_soup: BeautifulSoup = BeautifulSoup(distro_page.text, "html.parser")
     info_page: BeautifulSoup = distro_soup.find(attrs={"class": "TablesTitle"})
 
+    # Distro info saved to json
+    distro_info: dict[str, str | int | float] = {}
+    distro_info["slug"] = name
+
     # Distro full name
-    distro_name: str = info_page.h1.extract().text
+    distro_info["name"] = info_page.h1.extract().text
 
     # Last update
-    last_update: str = info_page.h2.extract().text
-
-    # Distro logo
-    logo_url: str = info_page.find("img", attrs={"class": "logo"}).get("src")
-    logo: bytes = requests.get(
-        url=DISTOWATCH_URL+logo_url,
-        headers=REQUEST_HEADERS
-    ).content
+    # TODO: convert to utc time format
+    distro_info["lastUpdate"] = info_page.h2.extract().text
 
     # Info list (ul)
     distro_info_soup: BeautifulSoup = info_page.ul.extract()
-    distro_info: dict[str, str | int] = {}
     for li in distro_info_soup.find_all("li"):
         # Key
-        key: str = li.b.text.lower().replace(" ", "_")[:-1]
+        key_part: tuple[str, str, str] = li.b.text.partition(" ")
+        key: str = f"{key_part[0].lower()}{key_part[2].capitalize()}"[:-1]
 
         # Value
         links = li.find_all(["a", "font"], recursive=False)
@@ -75,28 +75,42 @@ def extract_distro_data(name: str) -> None:
     if not distro_info["popularity"]:
         # Popularity not ranked
         distro_info["popularity"] = 0
-        distro_info["hits_per_day"] = 0
+        distro_info["hitsPerDay"] = 0
     else:
         # Get popularity and hits per day
         popularity_partition: tuple[str, str, str] = distro_info["popularity"].partition(" ")
         distro_info["popularity"] = int(popularity_partition[0])
-        distro_info["hits_per_day"] = int(first_number.search(popularity_partition[2]).group())
+        distro_info["hitsPerDay"] = int(first_number.search(popularity_partition[2]).group())
 
     # Distro description
-    distro_description: str = info_page.text.strip().partition("\n")[0]
+    distro_info["description"] = info_page.text.strip().partition("\n")[0]
 
     # Rating
     bold_text = info_page.find_all("b")
-    review_count: int = 0
-    average_rating: float = 0.0
+    distro_info["rating"] = 0
+    distro_info["reviewCount"] = 0.0
     try:
-        review_count = int(bold_text[-1].text)
-        average_rating = float(bold_text[-2].text)
+        distro_info["rating"] = int(bold_text[-1].text)
+        distro_info["reviewCount"] = float(bold_text[-2].text)
     except ValueError or KeyError:
         pass
 
-    # Save to json, image as png
+    # Distro logo
+    distro_info["logo"] = DISTOWATCH_URL + info_page.find("img", attrs={"class": "logo"}).get("src")
+    logo: bytes = requests.get(
+        url=distro_info["logo"],
+        headers=REQUEST_HEADERS
+    ).content
 
+    # Extracted (current time)
+    distro_info["extracted"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+
+    # Save json
+    with open(f"{name}.json", "w") as json_file:
+        json.dump(distro_info, json_file, sort_keys=True)
+
+    # Save to json, image as png
+    # Ubuntu: 2026-02-21 21:20
 
 
 def main() -> None:
