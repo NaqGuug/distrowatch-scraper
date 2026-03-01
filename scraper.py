@@ -55,8 +55,9 @@ def extract_distro_data(name: str) -> None:
     distro_info["name"] = info_page.h1.extract().text
 
     # Last update
-    # TODO: convert to utc time format
-    distro_info["lastUpdate"] = info_page.h2.extract().text
+    update_text: list[str] = info_page.h2.extract().text.split(" ")
+    last_update: str = f"{update_text[2]}T{update_text[3]}:00Z"
+    distro_info["lastUpdate"] = last_update
 
     # Info list (ul) [#1]
     distro_info_soup: BeautifulSoup = info_page.ul.extract()
@@ -105,7 +106,7 @@ def extract_distro_data(name: str) -> None:
     ).content
 
     # Extracted (current time)
-    distro_info["extracted"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%S.%fZ")
+    distro_info["extracted"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     # Save json
     with open(f"{name}.json", "w") as json_file:
