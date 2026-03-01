@@ -10,6 +10,7 @@ URL_EXTENSION: str = "table.php?distribution="
 REQUEST_HEADERS: dict[str, str] = {
     "User-Agent": "Mozilla Gecko"
 }
+PARSER: str = "html5lib"
 first_number: re.Pattern = re.compile(r"\d+")
 
 
@@ -20,7 +21,7 @@ def get_distros() -> list[str]:
         url=DISTOWATCH_URL,
         headers=REQUEST_HEADERS
     )
-    soup: BeautifulSoup = BeautifulSoup(main_page.text, "html.parser")
+    soup: BeautifulSoup = BeautifulSoup(main_page.text, PARSER)
 
     # Get options from news page
     news_filtering: BeautifulSoup = soup.find(attrs={"class": "Introduction"})
@@ -43,7 +44,7 @@ def extract_distro_data(name: str) -> None:
         url=DISTOWATCH_URL+URL_EXTENSION+name,
         headers=REQUEST_HEADERS
     )
-    distro_soup: BeautifulSoup = BeautifulSoup(distro_page.text, "html.parser")
+    distro_soup: BeautifulSoup = BeautifulSoup(distro_page.text, PARSER)
     info_page: BeautifulSoup = distro_soup.find(attrs={"class": "TablesTitle"})
 
     # Distro info saved to json
@@ -57,16 +58,20 @@ def extract_distro_data(name: str) -> None:
     # TODO: convert to utc time format
     distro_info["lastUpdate"] = info_page.h2.extract().text
 
-    # Info list (ul)
+    # Info list (ul) [#1]
     distro_info_soup: BeautifulSoup = info_page.ul.extract()
+
+    # Distro description [Save here for better ordering]
+    distro_info["description"] = info_page.text.strip().partition("\n")[0]
+
+    # Info list (ul) [#2]
     for li in distro_info_soup.find_all("li"):
         # Key
-        key_part: tuple[str, str, str] = li.b.text.partition(" ")
+        key_part: tuple[str, str, str] = li.b.extract().text.partition(" ")
         key: str = f"{key_part[0].lower()}{key_part[2].capitalize()}"[:-1]
 
         # Value
-        links = li.find_all(["a", "font"], recursive=False)
-        value: str = ", ".join([link.text for link in links])
+        value: str = li.get_text().strip()
 
         distro_info[key] = value
 
@@ -81,9 +86,6 @@ def extract_distro_data(name: str) -> None:
         popularity_partition: tuple[str, str, str] = distro_info["popularity"].partition(" ")
         distro_info["popularity"] = int(popularity_partition[0])
         distro_info["hitsPerDay"] = int(first_number.search(popularity_partition[2]).group())
-
-    # Distro description
-    distro_info["description"] = info_page.text.strip().partition("\n")[0]
 
     # Rating
     bold_text = info_page.find_all("b")
@@ -107,7 +109,7 @@ def extract_distro_data(name: str) -> None:
 
     # Save json
     with open(f"{name}.json", "w") as json_file:
-        json.dump(distro_info, json_file, sort_keys=True)
+        json.dump(distro_info, json_file)
 
     # Save to json, image as png
     # Ubuntu: 2026-02-21 21:20
@@ -119,6 +121,7 @@ def main() -> None:
     extract_distro_data("gnuinos")
     # extract_distro_data("eagle")
     # extract_distro_data("qlustar")
+    # extract_distro_data("kolibri")
 
 
 if __name__ == "__main__":
