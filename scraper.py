@@ -1,9 +1,9 @@
-from bs4 import BeautifulSoup
-import requests
-import re
-from datetime import datetime, timezone
-import json
+from typing import Any
 import os
+from datetime import datetime, timezone
+import re
+import aiohttp
+from bs4 import BeautifulSoup
 
 # Constants
 PARSER: str = "html5lib"
@@ -16,14 +16,16 @@ REQUEST_HEADERS: dict[str, str] = {
 first_number: re.Pattern = re.compile(r"\d+")
 
 
-def get_distros() -> list[str]:
+async def get_distros(session: aiohttp.ClientSession) -> list[str]:
     """Return list of all distros"""
     # Get DistroWatch main page
-    main_page: str = requests.get(
+    response = await session.get(
         url=DISTOWATCH_URL,
         headers=REQUEST_HEADERS
     )
-    soup: BeautifulSoup = BeautifulSoup(main_page.text, PARSER)
+    main_page = await response.text()
+    soup: BeautifulSoup = BeautifulSoup(main_page, PARSER)
+    response.close()
 
     # Get options from news page
     news_filtering: BeautifulSoup = soup.find(attrs={"class": "Introduction"})
@@ -39,22 +41,28 @@ def get_distros() -> list[str]:
     return distros
 
 
-def extract_distro_data(name: str, images: bool = True) -> None:
+async def extract_distro_data(session: aiohttp.ClientSession, name: str, images: bool = True) -> dict[str, Any]:
     """Extract distro data and save to files"""
     # Get distro page
-    distro_page = requests.get(
-        url=DISTOWATCH_URL+URL_EXTENSION+name,
+    url: str = DISTOWATCH_URL+URL_EXTENSION+name
+    response = await session.get(
+        url=url,
         headers=REQUEST_HEADERS
     )
-    distro_soup: BeautifulSoup = BeautifulSoup(distro_page.text, PARSER)
-    info_page: BeautifulSoup = distro_soup.find(attrs={"class": "TablesTitle"})
+    distro_page = await response.text()
+    distro_soup: BeautifulSoup = BeautifulSoup(distro_page, PARSER)
+    info_page: BeautifulSoup = distro_soup.find(attrs={"class": "TablesTitle"}).extract()
+    response.close()
 
     # Distro info saved to json
-    distro_info: dict = {}
+    distro_info: dict[str, Any] = {}
     distro_info["slug"] = name
 
     # Distro full name
     distro_info["name"] = info_page.h1.extract().text
+
+    # Distro url
+    distro_info["url"] = url
 
     # Last update
     update_text: list[str] = info_page.h2.extract().text.split(" ")
@@ -120,56 +128,37 @@ def extract_distro_data(name: str, images: bool = True) -> None:
     }
 
     # Extract images
-    if images:
-        # Fetch logo
-        logo: bytes = requests.get(
-            url=distro_info["logo"],
-            headers=REQUEST_HEADERS
-        ).content
-
-        with open(distro_info["localPaths"]["logo"], "wb") as lf:
-            lf.write(logo)
-
-        # Fetch thumbnail
-        if distro_info["thumbnail"]:
-            thumbnail: bytes = requests.get(
-                url=distro_info["thumbnail"],
-                headers=REQUEST_HEADERS
-            ).content
-
-            with open(distro_info["localPaths"]["thumbnail"], "wb") as tf:
-                tf.write(thumbnail)
-
-        # Fetch screenshot
-        if distro_info["screenshot"]:
-            screenshot: bytes = requests.get(
-                url=distro_info["screenshot"],
-                headers=REQUEST_HEADERS
-            ).content
-
-            with open(distro_info["localPaths"]["screenshot"], "wb") as sf:
-                sf.write(screenshot)
+    # if images:
+    #     # Fetch logo
+    #     logo: bytes = requests.get(
+    #         url=distro_info["logo"],
+    #         headers=REQUEST_HEADERS
+    #     ).content
+    #
+    #     with open(distro_info["localPaths"]["logo"], "wb") as lf:
+    #         lf.write(logo)
+    #
+    #     # Fetch thumbnail
+    #     if distro_info["thumbnail"]:
+    #         thumbnail: bytes = requests.get(
+    #             url=distro_info["thumbnail"],
+    #             headers=REQUEST_HEADERS
+    #         ).content
+    #
+    #         with open(distro_info["localPaths"]["thumbnail"], "wb") as tf:
+    #             tf.write(thumbnail)
+    #
+    #     # Fetch screenshot
+    #     if distro_info["screenshot"]:
+    #         screenshot: bytes = requests.get(
+    #             url=distro_info["screenshot"],
+    #             headers=REQUEST_HEADERS
+    #         ).content
+    #
+    #         with open(distro_info["localPaths"]["screenshot"], "wb") as sf:
+    #             sf.write(screenshot)
 
     # Extracted (current time)
     distro_info["extracted"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
-    # Save json
-    with open(f"{name}.json", "w") as json_file:
-        json.dump(distro_info, json_file)
-
-
-def main() -> None:
-    os.makedirs(EXTRACT_DIRECTORY, exist_ok=True)
-    os.makedirs(EXTRACT_DIRECTORY + "/logos", exist_ok=True)
-    os.makedirs(EXTRACT_DIRECTORY + "/thumbnails", exist_ok=True)
-    os.makedirs(EXTRACT_DIRECTORY + "/screenshots", exist_ok=True)
-    # distros = get_distros()
-    # print(len(distros))
-    extract_distro_data("gnuinos")
-    # extract_distro_data("eagle")
-    # extract_distro_data("qlustar")
-    # extract_distro_data("kolibri")
-
-
-if __name__ == "__main__":
-    main()
+    return distro_info
