@@ -7,7 +7,6 @@ from bs4 import BeautifulSoup
 
 # Constants
 PARSER: str = "html5lib"
-EXTRACT_DIRECTORY: str = os.getcwd() + "/data"
 DISTOWATCH_URL: str = "https://distrowatch.com/"
 URL_EXTENSION: str = "table.php?distribution="
 REQUEST_HEADERS: dict[str, str] = {
@@ -114,51 +113,40 @@ async def extract_distro_data(session: aiohttp.ClientSession, name: str, images:
     screenshot_a = info_page.a
     thumbnail_img = screenshot_a.img
     if thumbnail_img:
-        distro_info["screenshot"] = DISTOWATCH_URL + screenshot_a.get("href")
         distro_info["thumbnail"] = DISTOWATCH_URL + thumbnail_img.get("src")
+        distro_info["screenshot"] = DISTOWATCH_URL + screenshot_a.get("href")
     else:
-        distro_info["screenshot"] = None
         distro_info["thumbnail"] = None
+        distro_info["screenshot"] = None
 
     # Image local paths
     distro_info["localPaths"] = {
-        "logo": f"{EXTRACT_DIRECTORY}/logos/{name}_logo.png" if distro_info["logo"] else None,
-        "thumbnail": f"{EXTRACT_DIRECTORY}/thumbnails/{name}_thumbnail.png" if distro_info["thumbnail"] else None,
-        "screenshot": f"{EXTRACT_DIRECTORY}/screenshots/{name}_screenshot.png" if distro_info["screenshot"] else None
+        "logo": f"./logos/{name}-logo.png" if distro_info["logo"] else None,
+        "thumbnail": f"./thumbnails/{name}-thumbnail.png" if distro_info["thumbnail"] else None,
+        "screenshot": f"./screenshots/{name}-screenshot.png" if distro_info["screenshot"] else None
     }
-
-    # Extract images
-    # if images:
-    #     # Fetch logo
-    #     logo: bytes = requests.get(
-    #         url=distro_info["logo"],
-    #         headers=REQUEST_HEADERS
-    #     ).content
-    #
-    #     with open(distro_info["localPaths"]["logo"], "wb") as lf:
-    #         lf.write(logo)
-    #
-    #     # Fetch thumbnail
-    #     if distro_info["thumbnail"]:
-    #         thumbnail: bytes = requests.get(
-    #             url=distro_info["thumbnail"],
-    #             headers=REQUEST_HEADERS
-    #         ).content
-    #
-    #         with open(distro_info["localPaths"]["thumbnail"], "wb") as tf:
-    #             tf.write(thumbnail)
-    #
-    #     # Fetch screenshot
-    #     if distro_info["screenshot"]:
-    #         screenshot: bytes = requests.get(
-    #             url=distro_info["screenshot"],
-    #             headers=REQUEST_HEADERS
-    #         ).content
-    #
-    #         with open(distro_info["localPaths"]["screenshot"], "wb") as sf:
-    #             sf.write(screenshot)
 
     # Extracted (current time)
     distro_info["extracted"] = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
     return distro_info
+
+
+async def extract_image(
+    session: aiohttp.ClientSession,
+    link: str,
+    save_path: str,
+    force_update: bool = False
+) -> None:
+    """Extract and save image"""
+    if not force_update and os.path.exists(save_path):
+        return
+
+    response = await session.get(
+        url=link,
+        headers=REQUEST_HEADERS
+    )
+    image: bytes = await response.read()
+
+    with open(save_path, "wb") as image_file:
+        image_file.write(image)
