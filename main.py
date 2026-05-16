@@ -4,20 +4,25 @@ import aiohttp
 import scraper
 import json
 from tqdm.asyncio import tqdm_asyncio
-from collections import namedtuple
+from typing import NamedTuple
 
 
-ExtractImages: type[tuple[bool, bool, bool]] = namedtuple(
-    "ExtractImages",
-    ["logos", "thumbnails", "screenshots", "force_update"],
-    defaults=[False, False, False, False]
-)
+class ExtractImages(NamedTuple):
+    """Image extraction settings"""
+    logos: bool = False
+    thumbnails: bool = False
+    screenshots: bool = False
+    force_update: bool = False
 
 
 async def scrape(
     extract_directory: str = "./data",
+    json_file_name: str = "distros.json",
     images: ExtractImages = ExtractImages(),
+    force_update: bool = False
 ) -> None:
+    json_file_path: str = f"{extract_directory}/{json_file_name}"
+    full_update: bool = not force_update and os.path.exists(json_file_path)
     os.makedirs(extract_directory, exist_ok=True)
     if images.logos: os.makedirs(extract_directory + "/logos", exist_ok=True)
     if images.thumbnails: os.makedirs(extract_directory + "/thumbnails", exist_ok=True)
@@ -25,15 +30,26 @@ async def scrape(
 
     async with aiohttp.ClientSession() as session:
         # Get all distros
-        distros_names: list[str] = await scraper.get_distros(session)
-        distros_names = distros_names[:10]  # TODO: Remove
+        distros_names: set[str] = await scraper.get_distros(session)
+        # TODO: Remove
+        while (len(distros_names) > 10):
+            distros_names.pop()
+
+        # Remove distros from list if found from json file
+        pre_distro_data: list[dict] = []
+        if full_update:
+            with open(json_file_path, "r") as jf:
+                pre_distro_data = json.load(jf)
+            for pdd in pre_distro_data:
+                distros_names.discard(pdd["slug"])
 
         # Extract data from distro pages
         tasks = [scraper.extract_distro_data(session, name) for name in distros_names]
         results = await tqdm_asyncio.gather(*tasks)
 
         # Write json file
-        with open(f"{extract_directory}/distros.json", "w") as json_file:
+        results.extend(pre_distro_data)
+        with open(json_file_path, "w") as json_file:
             json.dump(results, json_file, indent=2)
 
         def add_image_task(

@@ -15,7 +15,7 @@ REQUEST_HEADERS: dict[str, str] = {
 first_number: re.Pattern = re.compile(r"\d+")
 
 
-async def get_distros(session: aiohttp.ClientSession) -> list[str]:
+async def get_distros(session: aiohttp.ClientSession) -> set[str]:
     """Return list of all distros"""
     # Get DistroWatch main page
     response = await session.get(
@@ -30,12 +30,12 @@ async def get_distros(session: aiohttp.ClientSession) -> list[str]:
     news_filtering: BeautifulSoup = soup.find(attrs={"class": "Introduction"})
     distro_select: BeautifulSoup = news_filtering.find("select", attrs={"name": "distribution"})
     # Get all distros
-    distros: list[str] = []
+    distros: set[str] = set()
     for options in distro_select.find_all("option"):
         if options.string == "All":
             # Default selection, not a distro
             continue
-        distros.append(options.get("value"))
+        distros.add(options.get("value"))
 
     return distros
 
