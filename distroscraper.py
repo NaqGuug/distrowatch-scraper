@@ -2,7 +2,7 @@ import sys
 from pathlib import Path
 import asyncio
 import aiohttp
-import scraper
+import extractor
 import json
 from tqdm.asyncio import tqdm_asyncio
 from typing import NamedTuple
@@ -23,6 +23,7 @@ async def scrape(
     images: ExtractImages = ExtractImages(),
     force_update: bool = False
 ) -> None:
+    """Scrape Distrowatch.com"""
     json_file_path: Path = extract_directory / json_file_name
     full_update: bool = not force_update and json_file_path.is_file()
     extract_directory.mkdir(exist_ok=True)
@@ -32,7 +33,7 @@ async def scrape(
 
     async with aiohttp.ClientSession() as session:
         # Get all distros
-        name_result: list[set[str]] = await tqdm_asyncio.gather(scraper.get_distros(session))
+        name_result: list[set[str]] = await tqdm_asyncio.gather(extractor.get_distros(session))
         distros_names: set[str] = name_result[0]
 
         # Remove distros from list if found from json file
@@ -44,7 +45,7 @@ async def scrape(
                 distros_names.discard(pdd["slug"])
 
         # Extract data from distro pages
-        tasks = [scraper.extract_distro_data(session, name) for name in distros_names]
+        tasks = [extractor.extract_distro_data(session, name) for name in distros_names]
         results = await tqdm_asyncio.gather(*tasks)
 
         # Write json file
@@ -59,7 +60,7 @@ async def scrape(
             force_update: bool = False
         ) -> None:
             task_list.append(
-                scraper.extract_image(
+                extractor.extract_image(
                     session,
                     distro_data[image_type],
                     extract_directory / f"{image_type}s" / distro_data["localPaths"][image_type].rpartition("/")[-1],
