@@ -1,5 +1,5 @@
 from typing import Any
-import os
+from pathlib import Path
 from datetime import datetime, timezone
 import re
 import aiohttp
@@ -101,12 +101,12 @@ async def extract_distro_data(session: aiohttp.ClientSession, name: str, images:
     bold_text = info_page.find_all("b")
     try:
         # Get rating and review count
-        distro_info["rating"] = int(bold_text[-1].text)
-        distro_info["reviewCount"] = float(bold_text[-2].text)
-    except ValueError or KeyError:
+        distro_info["rating"] = float(bold_text[-2].text)
+        distro_info["reviewCount"] = int(bold_text[-1].text)
+    except (ValueError, IndexError):
         # Not rated
-        distro_info["rating"] = 0
-        distro_info["reviewCount"] = 0.0
+        distro_info["rating"] = 0.0
+        distro_info["reviewCount"] = 0
 
     # Image urls
     distro_info["logo"] = DISTOWATCH_URL + info_page.find("img", attrs={"class": "logo"}).get("src")
@@ -135,11 +135,11 @@ async def extract_distro_data(session: aiohttp.ClientSession, name: str, images:
 async def extract_image(
     session: aiohttp.ClientSession,
     link: str,
-    save_path: str,
+    save_path: Path,
     force_update: bool = False
 ) -> None:
     """Extract and save image"""
-    if not force_update and os.path.exists(save_path):
+    if not force_update and save_path.is_file():
         return
 
     response = await session.get(
@@ -147,6 +147,4 @@ async def extract_image(
         headers=REQUEST_HEADERS
     )
     image: bytes = await response.read()
-
-    with open(save_path, "wb") as image_file:
-        image_file.write(image)
+    save_path.write_bytes(image)
