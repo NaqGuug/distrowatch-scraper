@@ -23,7 +23,7 @@ async def scrape(
     images: ExtractImages = ExtractImages(),
     force_update: bool = False
 ) -> None:
-    """Scrape Distrowatch.com"""
+    """Scrape DistroWatch.com"""
     json_file_path: Path = extract_directory / json_file_name
     full_update: bool = not force_update and json_file_path.is_file()
     extract_directory.mkdir(exist_ok=True)
@@ -83,7 +83,7 @@ async def scrape(
 
 def main() -> None:
     parser = argparse.ArgumentParser(
-        description="Scrape distro information and images from Distrowatch.com"
+        description="Scrape distro information and images from DistroWatch.com"
     )
     parser.add_argument("-o", "--output", help="Output directory")
     parser.add_argument("-f", "--force-update", action="store_true", help="Force update existing data")
