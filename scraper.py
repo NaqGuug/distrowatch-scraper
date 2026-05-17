@@ -91,7 +91,7 @@ async def extract_distro_data(session: aiohttp.ClientSession, name: str, images:
         # Get popularity and hits per day
         popularity_partition: tuple[str, str, str] = distro_info["popularity"].partition(" ")
         distro_info["popularity"] = int(popularity_partition[0])
-        distro_info["hitsPerDay"] = int(first_number.search(popularity_partition[2]).group())
+        distro_info["hitsPerDay"] = int(first_number.search(popularity_partition[2].replace(",", "")).group())
     except ValueError:
         # Popularity not ranked
         distro_info["popularity"] = 0
@@ -102,7 +102,7 @@ async def extract_distro_data(session: aiohttp.ClientSession, name: str, images:
     try:
         # Get rating and review count
         distro_info["rating"] = float(bold_text[-2].text)
-        distro_info["reviewCount"] = int(bold_text[-1].text)
+        distro_info["reviewCount"] = int(bold_text[-1].text.replace(",", ""))
     except (ValueError, IndexError):
         # Not rated
         distro_info["rating"] = 0.0

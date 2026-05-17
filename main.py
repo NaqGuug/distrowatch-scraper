@@ -34,9 +34,6 @@ async def scrape(
         # Get all distros
         name_result: list[set[str]] = await tqdm_asyncio.gather(scraper.get_distros(session))
         distros_names: set[str] = name_result[0]
-        # TODO: Remove
-        while (len(distros_names) > 5):
-            distros_names.pop()
 
         # Remove distros from list if found from json file
         pre_distro_data: list[dict] = []
